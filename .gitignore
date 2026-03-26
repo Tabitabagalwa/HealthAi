@@ -1,0 +1,6 @@
+# .gitignore
+node_modules/
+dist/
+.angular/
+.env
+firebase-applet-config.json

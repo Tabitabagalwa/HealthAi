@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (Auth UID)
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required, email format)
+    //   - display_name: string (optional)
+    //   - photo_url: string (optional, URL format)
+    //   - role: string (required, 'admin' or 'worker')
+    //   - created_at: timestamp (required)
+    //   - last_login: timestamp (required)
+    //
+    // Collection: consultations
+    // Document ID: auto-generated
+    // Fields:
+    //   - worker_uid: string (required, matches Auth UID)
+    //   - patient_symptoms: string (required)
+    //   - image_url: string (optional, URL format)
+    //   - triage_result: map (required)
+    //     - priority_color: string (required, 'Red', 'Yellow', 'Green')
+    //     - danger_signs_present: bool (required)
+    //     - suspected_conditions: list (required)
+    //     - key_findings: list (required)
+    //     - immediate_actions: list (required)
+    //     - parent_advice: list (required)
+    //     - referral_needed: bool (required)
+    //   - timestamp: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email.lower() == "dorcasbagalwa674@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'created_at', 'last_login']) &&
+             data.uid == request.auth.uid &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['admin', 'worker'] &&
+             data.created_at is timestamp &&
+             data.last_login is timestamp &&
+             (!('display_name' in data) || data.display_name == null || (data.display_name is string && data.display_name.size() < 100)) &&
+             (!('photo_url' in data) || data.photo_url == null || (data.photo_url is string && isValidUrl(data.photo_url)));
+    }
+
+    function isValidConsultation(data) {
+      return data.keys().hasAll(['worker_uid', 'patient_symptoms', 'triage_result', 'timestamp']) &&
+             data.worker_uid == request.auth.uid &&
+             data.patient_symptoms is string &&
+             data.patient_symptoms.size() > 10 &&
+             data.patient_symptoms.size() < 5000 &&
+             data.triage_result is map &&
+             data.triage_result.priority_color in ['Red', 'Yellow', 'Green'] &&
+             data.triage_result.danger_signs_present is bool &&
+             data.triage_result.suspected_conditions is list &&
+             data.triage_result.suspected_conditions.size() < 10 &&
+             data.triage_result.key_findings is list &&
+             data.triage_result.key_findings.size() < 20 &&
+             data.triage_result.immediate_actions is list &&
+             data.triage_result.immediate_actions.size() < 20 &&
+             data.triage_result.parent_advice is list &&
+             data.triage_result.parent_advice.size() < 20 &&
+             data.triage_result.referral_needed is bool &&
+             data.timestamp is timestamp &&
+             (!('image_url' in data) || data.image_url == null || (data.image_url is string && data.image_url.size() < 2000000)); // Allowing large base64 for now, but Storage is better
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'worker';
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role;
+    }
+
+    match /consultations/{consultationId} {
+      allow read: if isAuthenticated() && (resource.data.worker_uid == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidConsultation(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+  }
+}

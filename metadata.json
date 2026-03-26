@@ -1,0 +1,5 @@
+{
+  "name": "HealthGuard AI",
+  "description": "Medical triage assistant for community health workers in East and Central Africa, based on WHO IMCI guidelines.",
+  "requestFramePermissions": ["camera"]
+}

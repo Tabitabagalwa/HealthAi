@@ -1,0 +1,53 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Health worker profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID." },
+        "email": { "type": "string", "format": "email" },
+        "display_name": { "type": "string" },
+        "photo_url": { "type": "string", "format": "uri" },
+        "role": { "type": "string", "enum": ["admin", "worker"] },
+        "created_at": { "type": "string", "format": "date-time" },
+        "last_login": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "created_at", "last_login"]
+    },
+    "Consultation": {
+      "title": "Consultation",
+      "description": "A medical triage session result.",
+      "type": "object",
+      "properties": {
+        "worker_uid": { "type": "string", "description": "UID of the health worker who performed the triage." },
+        "patient_symptoms": { "type": "string" },
+        "image_url": { "type": "string", "format": "uri" },
+        "triage_result": {
+          "type": "object",
+          "properties": {
+            "priority_color": { "type": "string", "enum": ["Red", "Yellow", "Green"] },
+            "danger_signs_present": { "type": "boolean" },
+            "suspected_conditions": { "type": "array", "items": { "type": "string" } },
+            "key_findings": { "type": "array", "items": { "type": "string" } },
+            "immediate_actions": { "type": "array", "items": { "type": "string" } },
+            "parent_advice": { "type": "array", "items": { "type": "string" } },
+            "referral_needed": { "type": "boolean" }
+          }
+        },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["worker_uid", "patient_symptoms", "triage_result", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles."
+    },
+    "/consultations/{consultationId}": {
+      "schema": "Consultation",
+      "description": "Triage consultation records."
+    }
+  }
+}
